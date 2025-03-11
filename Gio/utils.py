@@ -1,17 +1,9 @@
+import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
 def plot_dataframe_columns(df, figsize_base=(15, 5), bins=10, show_all_xticks=False, rwidth=0.6):
-    """
-    Generates histograms for numerical columns and bar plots for categorical columns in a DataFrame.
-    
-    Parameters:
-    - df: pd.DataFrame, the DataFrame containing the data.
-    - figsize_base: tuple, base size of the figure (width, height multiplier for rows).
-    - bins: int, number of bins for histogram plots.
-    - show_all_xticks: bool, whether to show all x-tick labels for categorical variables.
-    """
     df_notna = df.dropna()
     num_columns = len(df_notna.columns)
     
@@ -95,3 +87,85 @@ def decode_degree(degree):
 # To follow the notation of Bayesian Networks
 def to_camel_case(s: str) -> str:
     return ''.join(word.capitalize() for word in s.split())
+
+def hierarchical_layout(G, vertical_spacing=1.5, horizontal_spacing=2.0):
+    """
+    Generates a hierarchical layout for a graph, distributing nodes into levels.
+    """
+    if not nx.is_directed_acyclic_graph(G):
+        raise ValueError("Hierarchical layout works best with a Directed Acyclic Graph (DAG).")
+
+    roots = [n for n in G.nodes() if G.in_degree(n) == 0]
+    if not roots:
+        shortest_paths = dict(nx.all_pairs_shortest_path_length(G))
+        avg_distance = {node: sum(d.values()) / len(d) for node, d in shortest_paths.items()}
+        roots = [min(avg_distance, key=avg_distance.get)]
+
+    levels = {}
+    for root in roots:
+        for node, level in nx.single_source_shortest_path_length(G, root).items():
+            levels[node] = min(levels.get(node, float("inf")), level)
+
+    level_dict = {}
+    for node, level in levels.items():
+        level_dict.setdefault(level, []).append(node)
+
+    pos = {}
+    for level, nodes in level_dict.items():
+        x_positions = np.linspace(-len(nodes) / 2, len(nodes) / 2, len(nodes))
+        for x, node in zip(x_positions, nodes):
+            pos[node] = (x * horizontal_spacing, -level * vertical_spacing)
+
+    return pos
+
+def draw_graph(G, pos, node_color="lightblue", edge_color="gray", node_size=1000):
+    """
+    Draws the graph with the given layout, avoiding curved edges among same-layer nodes, 
+    ensuring no duplicate edges are drawn, and placing arrows at the end of edges.
+    """
+    plt.figure(figsize=(12, 8))
+    nx.draw(G, pos, edgelist=[], with_labels=False, node_color=node_color, edge_color=edge_color, node_size=node_size)
+
+    # Track edges already drawn to avoid duplicates
+    drawn_edges = set()
+
+    for edge in G.edges():
+        start, end = edge
+        # Skip duplicates (both directions)
+        if (start, end) in drawn_edges or (end, start) in drawn_edges:
+            continue
+
+        # Add edge to the drawn edges set
+        drawn_edges.add((start, end))
+
+        x1, y1 = pos[start]
+        x2, y2 = pos[end]
+
+        # Check if nodes are at the same level (same y position)
+        if y1 == y2:  # Same level -> curved edge
+            curvature = 0.3
+            plt.annotate("",
+                         xy=(x2, y2), xycoords='data',
+                         xytext=(x1, y1), textcoords='data',
+                         arrowprops=dict(arrowstyle="->",
+                                         color=edge_color,
+                                         lw=1.5,
+                                         connectionstyle=f"arc3,rad={curvature}"))
+        else:  # Different levels -> straight edge
+            curvature = 0.0
+            plt.annotate("",
+                         xy=(x2, y2), xycoords='data',
+                         xytext=(x1, y1), textcoords='data',
+                         arrowprops=dict(arrowstyle="->",
+                                         color=edge_color,
+                                         lw=1.5,
+                                         connectionstyle=f"arc3,rad={curvature}"))
+
+    # Improved positioning of node labels
+    for node, (x, y) in pos.items():
+        offset_x = 0.1 if x > 0 else -0.1
+        offset_y = 0.15
+        plt.text(x + offset_x, y + offset_y, str(node), fontsize=10, ha='center',
+                 bbox=dict(facecolor='white', edgecolor='black', boxstyle='round,pad=0.2'))
+
+    plt.show()
