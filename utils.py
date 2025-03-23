@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from pgmpy.factors.discrete.CPD import TabularCPD
+from pgmpy.models import BayesianNetwork
+
 
 def plot_dataframe_columns(df, figsize_base=(15, 5), bins=10, show_all_xticks=False, rwidth=0.6):
     df_notna = df.dropna()
@@ -168,3 +170,27 @@ def print_full(cpd):
     TabularCPD._truncate_strtable = lambda self, x: x
     print(cpd)
     TabularCPD._truncate_strtable = backup
+    
+def count_bn_parameters(model: BayesianNetwork) -> int:
+    """
+    Compute the total number of free parameters in a discrete Bayesian Network.
+    
+    For each node X with r states and parents with product of cardinalities Q,
+    the number of free parameters is (r - 1) * Q.
+    
+    Parameters:
+        model: BayesianNetwork
+            The Bayesian network model with CPDs defined.
+    
+    Returns:
+        total_parameters: int
+            The total number of free parameters in the network.
+    """
+    total_parameters = 0
+    for cpd in model.get_cpds():
+        r = cpd.cardinality[0]  # Cardinality of the variable
+        Q = np.prod(cpd.cardinality[1:]) if len(cpd.cardinality) > 1 else 1  # Product of parent cardinalities
+        free_params = (r - 1) * Q
+        total_parameters += free_params
+        
+    return total_parameters
