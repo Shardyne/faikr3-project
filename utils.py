@@ -4,7 +4,8 @@ import numpy as np
 import pandas as pd
 from pgmpy.factors.discrete.CPD import TabularCPD
 from pgmpy.models import BayesianNetwork
-
+from pgmpy.inference import VariableElimination
+from tqdm import tqdm  # Import tqdm for progress bar
 
 def plot_dataframe_columns(df, figsize_base=(15, 5), bins=10, show_all_xticks=False, rwidth=0.6):
     df_notna = df.dropna()
@@ -194,3 +195,43 @@ def count_bn_parameters(model: BayesianNetwork) -> int:
         total_parameters += free_params
         
     return total_parameters
+
+def log_like_score(model, df, show_progress=True):
+    inference = VariableElimination(model)
+    log_likelihood = 0
+    for _, row in tqdm(df.iterrows(), total=len(df), desc="Computing Log-Likelihood", ncols=80, disable=not show_progress):
+        for col in df.columns:
+            evidence = {c: row[c] for c in df.columns if c != col}
+            result = inference.query(variables=[col], evidence=evidence)
+            
+            # This is because "Cgpa" has no values with label 1 so we have to shift indexes
+            # We hardcoded this as it's an anomaly of the dataset not to have the 1 label and 
+            # we consider still right the binning we used 
+            observed_val = int(row[col])
+            if (col == 'Cgpa') and observed_val > 0:
+                log_likelihood += np.log(result.values[int(observed_val - 1)])
+            else:
+                log_likelihood += np.log(result.values[int(observed_val)])
+                
+    return log_likelihood
+
+def compute_bic(model, data, log_like_precomputed=None):
+    """
+    Computes the Bayesian Information Criterion (BIC) score for a given Bayesian Network model and dataset.
+    
+    Parameters:
+        model (BayesianNetwork): The Bayesian Network model.
+        data (pd.DataFrame): A DataFrame where each row represents an observation with observed variable values.
+    
+    Returns:
+        float: The BIC score of the model given the dataset.
+    """
+    if log_like_precomputed is not None:
+        log_likelihood = log_like_precomputed
+    else:
+        log_likelihood = log_like_score(model, data, show_progress=False)
+    num_params = sum(np.prod(cpd.cardinality) - 1 for cpd in model.get_cpds())  # Total number of parameters
+    num_samples = len(data)  # Number of data points
+    
+    bic = log_likelihood - (num_params / 2) * np.log(num_samples)
+    return bic
