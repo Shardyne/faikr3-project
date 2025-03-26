@@ -5,7 +5,8 @@ import pandas as pd
 from pgmpy.factors.discrete.CPD import TabularCPD
 from pgmpy.models import BayesianNetwork
 from pgmpy.inference import VariableElimination
-from tqdm import tqdm  # Import tqdm for progress bar
+from tqdm import tqdm 
+from sklearn.model_selection import train_test_split
 
 def plot_dataframe_columns(df, figsize_base=(15, 5), bins=10, show_all_xticks=False, rwidth=0.6):
     df_notna = df.dropna()
@@ -278,3 +279,60 @@ def compute_sparsity_score(model: BayesianNetwork) -> float:
     sparsity_score = 1 - (num_edges / max_possible_edges)
     
     return sparsity_score
+
+def compute_accuracy(model, data, target_col, train_size=0.8, seed=42, fitting_params=None, show_progress=True):
+    """
+    Trains a Bayesian Network on a dataset and computes the accuracy for predicting a given attribute.
+
+    :param model: BayesianNetwork (without CPDs) to be trained.
+    :param data: Pandas DataFrame containing the dataset.
+    :param target_col: Name of the column to be predicted.
+    :param train_size: Percentage of the dataset used for training (default: 0.8).
+    :param seed: Seed for train-test splitting (default: 42).
+    :param fitting_params: Dictionary containing the estimator and its parameters.
+    :param show_progress: Whether to display progress bars (default: True).
+    :return: Prediction accuracy (float).
+    """
+    if fitting_params is None:
+        raise ValueError("You must provide a fitting_params dictionary with an estimator and parameters.")
+
+    # Copy the model structure (without CPDs)
+    model_copy = BayesianNetwork(model.edges(), latents=list(model.latents))
+
+    # Split dataset into train and test sets
+    if show_progress:
+        print("Splitting dataset...")
+    train_data, test_data = train_test_split(data, train_size=train_size, random_state=seed)
+
+    # Train the model with the given estimator and parameters
+    if show_progress:
+        print("Training the model...")
+    estimator = fitting_params["estimator"](model_copy, train_data)
+    estimated_params = estimator.get_parameters(**fitting_params["params"])
+
+    # Assign learned CPDs to the model
+    model_copy.cpds = estimated_params
+
+    # Perform inference on the trained model
+    inference = VariableElimination(model_copy)
+    correct_predictions = 0
+    total_predictions = len(test_data)
+
+    # Compute accuracy with progress bar
+    actual_total_predictions = total_predictions
+    for _, row in tqdm(test_data.iterrows(), total=total_predictions, desc="Computing Accuracy", disable=not show_progress):
+        evidence = row.drop(labels=[target_col]).to_dict()  # Use all other attributes as evidence
+        real_value = row[target_col]
+
+        try:
+            predicted_value = inference.map_query([target_col], evidence=evidence, show_progress=False)[target_col]
+            if predicted_value == real_value:
+                correct_predictions += 1
+        except:
+            actual_total_predictions -= 1
+            pass  # Ignore row if inference fails
+        
+    if show_progress and (actual_total_predictions == total_predictions) : 
+        print("All inference succeeded!")
+
+    return correct_predictions / actual_total_predictions if actual_total_predictions > 0 else 0
