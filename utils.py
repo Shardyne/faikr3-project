@@ -4,7 +4,9 @@ import numpy as np
 import pandas as pd
 from pgmpy.factors.discrete.CPD import TabularCPD
 from pgmpy.models import BayesianNetwork
-from pgmpy.inference import VariableElimination
+import time
+from pgmpy.inference import VariableElimination, ApproxInference
+from pgmpy.sampling import GibbsSampling
 from tqdm import tqdm 
 from sklearn.model_selection import train_test_split
 
@@ -336,3 +338,48 @@ def compute_accuracy(model, data, target_col, train_size=0.8, seed=42, fitting_p
         print("All inference succeeded!")
 
     return correct_predictions / actual_total_predictions if actual_total_predictions > 0 else 0
+
+def query(model, query_vars, evidence=None, num_samples=1000):
+    """
+    Executes a query on a Bayesian network using exact inference and multiple approximate inference methods,
+    considering the possibility of latent nodes.
+    Tracks execution time for each method.
+    
+    :param model: BayesianModel from pgmpy
+    :param query_vars: List of variables to query
+    :param evidence: Dictionary of evidence variables and their values
+    :param num_samples: Number of samples for approximate inference
+    :return: Dictionary containing results and execution times
+    """
+    results = {}
+    
+    # Exact Inference
+    exact_infer = VariableElimination(model)
+    start_time = time.time()
+    exact_result = exact_infer.query(
+        variables=query_vars, 
+        evidence=evidence,
+        show_progress=False
+    )
+    exact_time = time.time() - start_time
+    results['exact'] = {'result': exact_result, 'time': exact_time}
+    
+    # Approximate Inference Methods
+    approx_methods = {
+        'approx_infer': ApproxInference,
+        'gibbs_sampling': GibbsSampling,
+    }
+
+    for method_name, method_class in approx_methods.items():
+            approx_infer = method_class(model)
+            start_time = time.time()
+            approx_result = approx_infer.query(
+                variables=query_vars,
+                evidence=evidence,
+                n_samples=num_samples,
+                show_progress=False
+            )
+            approx_time = time.time() - start_time
+            results[method_name] = {'result': approx_result, 'time': approx_time}
+
+    return results
