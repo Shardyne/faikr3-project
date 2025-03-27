@@ -365,21 +365,15 @@ def query(model, query_vars, evidence=None, num_samples=1000):
     results['exact'] = {'result': exact_result, 'time': exact_time}
     
     # Approximate Inference Methods
-    approx_methods = {
-        'approx_infer': ApproxInference,
-        'gibbs_sampling': GibbsSampling,
-    }
-
-    for method_name, method_class in approx_methods.items():
-            approx_infer = method_class(model)
-            start_time = time.time()
-            approx_result = approx_infer.query(
-                variables=query_vars,
-                evidence=evidence,
-                n_samples=num_samples,
-                show_progress=False
-            )
-            approx_time = time.time() - start_time
-            results[method_name] = {'result': approx_result, 'time': approx_time}
+    approx_infer = ApproxInference(model)
+    start_time = time.time()
+    approx_result = approx_infer.query(
+        variables=query_vars,
+        evidence=evidence,
+        n_samples=num_samples,
+        show_progress=False
+        )
+    approx_time = time.time() - start_time
+    results['approx'] = {'result': approx_result, 'time': approx_time}
 
     return results
