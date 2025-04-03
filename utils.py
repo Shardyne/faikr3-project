@@ -371,17 +371,17 @@ def query(model, query_vars, evidence=None, num_samples=1000):
     exact_time = time.time() - start_time
     results['exact'] = {'result': exact_result, 'time': exact_time}
     
-    # Approximate Inference Methods
-    approx_infer = ApproxInference(model)
-    start_time = time.time()
-    approx_result = approx_infer.query(
-        variables=query_vars,
-        evidence=evidence,
-        n_samples=num_samples,
-        show_progress=False
-        )
-    approx_time = time.time() - start_time
-    results['approx'] = {'result': approx_result, 'time': approx_time}
+    ## Approximate Inference Methods
+    #approx_infer = ApproxInference(model)
+    #start_time = time.time()
+    #approx_result = approx_infer.query(
+    #    variables=query_vars,
+    #    evidence=evidence,
+    #    n_samples=num_samples,
+    #    show_progress=False
+    #    )
+    #approx_time = time.time() - start_time
+    #results['approx'] = {'result': approx_result, 'time': approx_time}
 
     return results
 
@@ -425,15 +425,15 @@ def general_query(
             
         exact_score = get_nested_value(result["exact"]["result"].values, index_retrieve_values)
         exact_time = result["exact"]["time"]
-        approx_score = get_nested_value(result["approx"]["result"].values, index_retrieve_values)
-        approx_time = result["approx"]["time"]
-
+        #approx_score = get_nested_value(result["approx"]["result"].values, index_retrieve_values)
+        #approx_time = result["approx"]["time"]
+#
         # Store results with a clear key format
         result_str = ", ".join(f"{var}={idx}" for var, idx in zip(query_vars, index_retrieve_values))
         result_dict[f'Exact_Score_{result_str}'] = exact_score
         result_dict[f'Exact_Time_{result_str}'] = exact_time
-        result_dict[f'Approx_Score_{result_str}'] = approx_score
-        result_dict[f'Approx_Time_{result_str}'] = approx_time
+        #result_dict[f'Approx_Score_{result_str}'] = approx_score
+        #result_dict[f'Approx_Time_{result_str}'] = approx_time
 
         # Convert the result dictionary to a DataFrame and append to results_df
         result_df = pd.DataFrame([result_dict])
