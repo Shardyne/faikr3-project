@@ -549,13 +549,13 @@ def simul_sum(model, query_vars, attribute_evidence, index_retrieve_values, iter
     results_approx = {}
     times_exact = {}
     times_approx = {}
+    sum_results_exact = {}
+    sum_results_approx = {}
+    sum_times_exact = {}
+    sum_times_approx = {}
+
 
     for ind in index_retrieve_values:  
-        
-        total_exact=[0]*iter
-        time_exact=[0]*iter
-        total_approx=[0]*iter
-        time_approx=[0]*iter
        
         for ev in evidence_iter:  
             key = frozenset(ev.items())  # Convert dict to an immutable key
@@ -576,23 +576,29 @@ def simul_sum(model, query_vars, attribute_evidence, index_retrieve_values, iter
                 results_approx[key].append(approx_score)
                 times_exact[key] += exact_time
                 times_approx[key] += approx_time
+
+            if key not in sum_results_approx.keys():
+                sum_results_exact[key]=np.array(results_exact[key])
+                sum_results_approx[key]=np.array(results_approx[key])
+                sum_times_exact[key] = times_exact[key]
+                sum_times_approx[key] = times_approx[key]
+            else:
+                sum_results_exact[key]+=np.array(results_exact[key])
+                sum_results_approx[key]+=np.array(results_approx[key])
+                sum_times_exact[key] += times_exact[key]
+                sum_times_approx[key]+= times_approx[key]             
     
-            total_exact+=results_exact[key]
-            time_exact+=times_exact[key]
-            total_approx+=results_approx[key]
-            time_approx+=times_approx[key]
-    
-    results_exact_df = pd.DataFrame(results_exact)
-    results_approx_df = pd.DataFrame(results_approx)
+    results_exact_df = pd.DataFrame(sum_results_exact)
+    results_approx_df = pd.DataFrame(sum_results_approx)
     noise_level = 1e-6  # Small noise
     results_exact_df += np.random.normal(0, noise_level, results_exact_df.shape)
     results_approx_df += np.random.normal(0, noise_level, results_approx_df.shape)
 
 
-    tests_exact = np.empty((len(results_exact), len(results_exact)))
-    tests_approx = np.empty((len(results_exact), len(results_exact)))
-    np.fill_diagonal(tests_exact, [None]*len(results_exact))
-    np.fill_diagonal(tests_approx, [None]*len(results_exact))
+    tests_exact = np.empty((len(sum_results_exact), len(sum_results_exact)))
+    tests_approx = np.empty((len(sum_results_exact), len(sum_results_exact)))
+    np.fill_diagonal(tests_exact, [None]*len(sum_results_exact))
+    np.fill_diagonal(tests_approx, [None]*len(sum_results_exact))
 
 
     if alternative=='two-sided':
@@ -633,13 +639,13 @@ def simul_sum(model, query_vars, attribute_evidence, index_retrieve_values, iter
     print('Pvalues for Approximate Inference')
     display(pd.DataFrame(tests_approx,index=results_exact.keys(), columns=results_exact.keys()))
 
-    result_str = ", ".join(f"{var}={idx}" for var, idx in zip(query_vars, index_retrieve_values))
+    result_str=[index_retrieve_values[index] for index in range(len(index_retrieve_values))]
 
     res_ex = pd.DataFrame(columns=['evidence', f'Mean_Exact_Score_{result_str}', f'Mean_Exact_Time_{result_str}',
                                     f'Mean_Approx_Score_{result_str}', f'Mean_Approx_Time_{result_str}'])
 
     for ev in evidences:
         key = frozenset(ev.items())  # Ensure consistency
-        res_ex.loc[len(res_ex)] = [str(ev), mean(results_exact[key]), time_exact[key], mean(results_approx[key]), time_approx[key]]
+        res_ex.loc[len(res_ex)] = [str(ev), mean(sum_results_exact[key]), sum_times_exact[key], mean(sum_results_approx[key]), sum_times_approx[key]]
 
     return res_ex
