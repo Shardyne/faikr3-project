@@ -9,6 +9,13 @@ from pgmpy.inference import VariableElimination, ApproxInference
 from pgmpy.sampling import GibbsSampling
 from tqdm import tqdm 
 from sklearn.model_selection import train_test_split
+from scipy.stats import ttest_ind
+from sklearn.model_selection import ParameterGrid
+from statistics import mean
+import pandas as pd
+from sklearn.model_selection import ParameterGrid
+from tqdm import tqdm
+from functools import reduce
 
 def plot_dataframe_columns(df, figsize_base=(15, 5), bins=10, show_all_xticks=False, rwidth=0.6):
     df_notna = df.dropna()
@@ -377,3 +384,156 @@ def query(model, query_vars, evidence=None, num_samples=1000):
     results['approx'] = {'result': approx_result, 'time': approx_time}
 
     return results
+
+def get_nested_value(A, indices):
+    '''
+    Retrieve the result of a multidimensional array where each index is about a dimension of the array.
+    '''
+    try:
+        for idx in indices:
+            A = A[idx]
+        return A
+    except IndexError:
+        print(f"Error: Index {indices} is out of bounds for array with shape {A.shape}")
+        return None
+
+def general_query(
+    model,
+    query_vars, 
+    attribute_evidence, 
+    index_retrieve_values, 
+    show_progress=False
+):
+    """
+    Generalized querying function to handle multiple query variables and index retrieval.
+    """
+
+    # Generate all possible combinations of evidence
+    evidences = list(ParameterGrid({attr: model.get_cpds(attr).state_names[attr] for attr in attribute_evidence}))
+
+    # Create a DataFrame to store results
+    results_df = pd.DataFrame()
+
+    # Collect results for each evidence
+    evidence_iter = tqdm(evidences, desc=f"\tProcessing evidences", disable=not show_progress)
+
+    for evidence in evidence_iter:
+        result = query(model, query_vars, evidence=evidence)
+
+        # Prepare a dictionary to store the results for each query variable and index
+        result_dict = {'Evidence': str(evidence)}
+            
+        exact_score = get_nested_value(result["exact"]["result"].values, index_retrieve_values)
+        exact_time = result["exact"]["time"]
+        approx_score = get_nested_value(result["approx"]["result"].values, index_retrieve_values)
+        approx_time = result["approx"]["time"]
+
+        # Store results with a clear key format
+        result_str = ", ".join(f"{var}={idx}" for var, idx in zip(query_vars, index_retrieve_values))
+        result_dict[f'Exact_Score_{result_str}'] = exact_score
+        result_dict[f'Exact_Time_{result_str}'] = exact_time
+        result_dict[f'Approx_Score_{result_str}'] = approx_score
+        result_dict[f'Approx_Time_{result_str}'] = approx_time
+
+        # Convert the result dictionary to a DataFrame and append to results_df
+        result_df = pd.DataFrame([result_dict])
+        results_df = pd.concat([results_df, result_df], ignore_index=True)
+
+    return results_df
+
+
+def simul(model, query_vars, attribute_evidence, index_retrieve_values, iter=100, 
+          alternative='less', show_progress=False, num=1000):
+
+    # Generate all possible combinations of evidence
+    evidences = list(ParameterGrid({attr: model.get_cpds(attr).state_names[attr] for attr in attribute_evidence}))
+
+    evidence_iter = tqdm(evidences, desc=f"\tProcessing evidences", disable=not show_progress)
+
+    results_exact = {}
+    results_approx = {}
+    time_exact = {}
+    time_approx = {}
+
+    for ev in evidence_iter:  
+        key = frozenset(ev.items())  # Convert dict to an immutable key
+        results_exact[key] = []
+        results_approx[key] = []
+        time_exact[key] = 0
+        time_approx[key] = 0
+
+        for _ in range(iter):
+            result = query(model, query_vars, evidence=ev, num_samples=num)
+
+            exact_score = get_nested_value(result["exact"]["result"].values, index_retrieve_values)
+            exact_time = result["exact"]["time"]
+            approx_score = get_nested_value(result["approx"]["result"].values, index_retrieve_values)
+            approx_time = result["approx"]["time"]
+
+            results_exact[key].append(exact_score)
+            results_approx[key].append(approx_score)
+            time_exact[key] += exact_time
+            time_approx[key] += approx_time
+
+    results_exact_df = pd.DataFrame(results_exact)
+    results_approx_df = pd.DataFrame(results_approx)
+    noise_level = 1e-6  # Small noise
+    results_exact_df += np.random.normal(0, noise_level, results_exact_df.shape)
+    results_approx_df += np.random.normal(0, noise_level, results_approx_df.shape)
+
+
+    tests_exact = np.empty((len(results_exact), len(results_exact)))
+    tests_approx = np.empty((len(results_exact), len(results_exact)))
+    np.fill_diagonal(tests_exact, [None]*len(results_exact))
+    np.fill_diagonal(tests_approx, [None]*len(results_exact))
+
+
+    if alternative=='two-sided':
+
+        for i in range(results_exact_df.shape[1]-1):
+            curr_test_ex = []
+            curr_test_appr = []
+
+            for j in range(i+1, results_exact_df.shape[1]):
+
+                test_exact = ttest_ind(results_exact_df.iloc[:, i], results_exact_df.iloc[:, j], alternative=alternative)
+                test_approx = ttest_ind(results_approx_df.iloc[:, i], results_approx_df.iloc[:, j], alternative=alternative)
+
+                tests_exact[i,j]=test_exact.pvalue
+                tests_exact[j,i]=test_exact.pvalue
+                tests_approx[i,j]=test_approx.pvalue
+                tests_approx[j,i]=test_approx.pvalue
+            
+    else:
+        for i in range(results_exact_df.shape[1]-1):
+            curr_test_ex = []
+            curr_test_appr = []
+
+            for j in range(i+1, results_exact_df.shape[1]):
+
+                test_exact = ttest_ind(results_exact_df.iloc[:, i], results_exact_df.iloc[:, j], alternative=alternative)
+                test_approx = ttest_ind(results_approx_df.iloc[:, i], results_approx_df.iloc[:, j], alternative=alternative)
+
+                tests_exact[i,j]=test_exact.pvalue
+                tests_exact[j,i]=1-test_exact.pvalue
+                tests_approx[i,j]=test_approx.pvalue
+                tests_approx[j,i]=1-test_approx.pvalue
+
+
+    print('P-values for Variable Elimination')
+    display(pd.DataFrame(tests_exact,index=results_exact.keys(), columns=results_exact.keys()))
+
+    print('Pvalues for Approximate Inference')
+    display(pd.DataFrame(tests_approx,index=results_exact.keys(), columns=results_exact.keys()))
+
+    result_str = ", ".join(f"{var}={idx}" for var, idx in zip(query_vars, index_retrieve_values))
+
+    res_ex = pd.DataFrame(columns=['evidence', f'Mean_Exact_Score_{result_str}', f'Mean_Exact_Time_{result_str}',
+                                    f'Mean_Approx_Score_{result_str}', f'Mean_Approx_Time_{result_str}'])
+
+    for ev in evidences:
+        key = frozenset(ev.items())  # Ensure consistency
+        res_ex.loc[len(res_ex)] = [str(ev), mean(results_exact[key]), time_exact[key], mean(results_approx[key]), time_approx[key]]
+
+    return res_ex
+
