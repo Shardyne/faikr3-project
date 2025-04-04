@@ -442,210 +442,210 @@ def general_query(
     return results_df
 
 
-def simul(model, query_vars, attribute_evidence, index_retrieve_values, iter=100, 
-          alternative='less', show_progress=False, num=1000):
+# def simul(model, query_vars, attribute_evidence, index_retrieve_values, iter=100, 
+#           alternative='less', show_progress=False, num=1000):
 
-    # Generate all possible combinations of evidence
-    evidences = list(ParameterGrid({attr: model.get_cpds(attr).state_names[attr] for attr in attribute_evidence}))
+#     # Generate all possible combinations of evidence
+#     evidences = list(ParameterGrid({attr: model.get_cpds(attr).state_names[attr] for attr in attribute_evidence}))
 
-    evidence_iter = tqdm(evidences, desc=f"\tProcessing evidences", disable=not show_progress)
+#     evidence_iter = tqdm(evidences, desc=f"\tProcessing evidences", disable=not show_progress)
 
-    results_exact = {}
-    results_approx = {}
-    time_exact = {}
-    time_approx = {}
+#     results_exact = {}
+#     results_approx = {}
+#     time_exact = {}
+#     time_approx = {}
 
-    for ev in evidence_iter:  
-        key = frozenset(ev.items())  # Convert dict to an immutable key
-        results_exact[key] = []
-        results_approx[key] = []
-        time_exact[key] = 0
-        time_approx[key] = 0
+#     for ev in evidence_iter:  
+#         key = frozenset(ev.items())  # Convert dict to an immutable key
+#         results_exact[key] = []
+#         results_approx[key] = []
+#         time_exact[key] = 0
+#         time_approx[key] = 0
 
-        for _ in range(iter):
-            result = query(model, query_vars, evidence=ev, num_samples=num)
+#         for _ in range(iter):
+#             result = query(model, query_vars, evidence=ev, num_samples=num)
 
-            exact_score = get_nested_value(result["exact"]["result"].values, index_retrieve_values)
-            exact_time = result["exact"]["time"]
-            approx_score = get_nested_value(result["approx"]["result"].values, index_retrieve_values)
-            approx_time = result["approx"]["time"]
+#             exact_score = get_nested_value(result["exact"]["result"].values, index_retrieve_values)
+#             exact_time = result["exact"]["time"]
+#             approx_score = get_nested_value(result["approx"]["result"].values, index_retrieve_values)
+#             approx_time = result["approx"]["time"]
 
-            results_exact[key].append(exact_score)
-            results_approx[key].append(approx_score)
-            time_exact[key] += exact_time
-            time_approx[key] += approx_time
+#             results_exact[key].append(exact_score)
+#             results_approx[key].append(approx_score)
+#             time_exact[key] += exact_time
+#             time_approx[key] += approx_time
 
-    results_exact_df = pd.DataFrame(results_exact)
-    results_approx_df = pd.DataFrame(results_approx)
-    noise_level = 1e-6  # Small noise
-    results_exact_df += np.random.normal(0, noise_level, results_exact_df.shape)
-    results_approx_df += np.random.normal(0, noise_level, results_approx_df.shape)
-
-
-    tests_exact = np.empty((len(results_exact), len(results_exact)))
-    tests_approx = np.empty((len(results_exact), len(results_exact)))
-    np.fill_diagonal(tests_exact, [None]*len(results_exact))
-    np.fill_diagonal(tests_approx, [None]*len(results_exact))
+#     results_exact_df = pd.DataFrame(results_exact)
+#     results_approx_df = pd.DataFrame(results_approx)
+#     noise_level = 1e-6  # Small noise
+#     results_exact_df += np.random.normal(0, noise_level, results_exact_df.shape)
+#     results_approx_df += np.random.normal(0, noise_level, results_approx_df.shape)
 
 
-    if alternative=='two-sided':
+#     tests_exact = np.empty((len(results_exact), len(results_exact)))
+#     tests_approx = np.empty((len(results_exact), len(results_exact)))
+#     np.fill_diagonal(tests_exact, [None]*len(results_exact))
+#     np.fill_diagonal(tests_approx, [None]*len(results_exact))
 
-        for i in range(results_exact_df.shape[1]-1):
-            curr_test_ex = []
-            curr_test_appr = []
 
-            for j in range(i+1, results_exact_df.shape[1]):
+#     if alternative=='two-sided':
 
-                test_exact = ttest_ind(results_exact_df.iloc[:, i], results_exact_df.iloc[:, j], alternative=alternative)
-                test_approx = ttest_ind(results_approx_df.iloc[:, i], results_approx_df.iloc[:, j], alternative=alternative)
+#         for i in range(results_exact_df.shape[1]-1):
+#             curr_test_ex = []
+#             curr_test_appr = []
 
-                tests_exact[i,j]=test_exact.pvalue
-                tests_exact[j,i]=test_exact.pvalue
-                tests_approx[i,j]=test_approx.pvalue
-                tests_approx[j,i]=test_approx.pvalue
+#             for j in range(i+1, results_exact_df.shape[1]):
+
+#                 test_exact = ttest_ind(results_exact_df.iloc[:, i], results_exact_df.iloc[:, j], alternative=alternative)
+#                 test_approx = ttest_ind(results_approx_df.iloc[:, i], results_approx_df.iloc[:, j], alternative=alternative)
+
+#                 tests_exact[i,j]=test_exact.pvalue
+#                 tests_exact[j,i]=test_exact.pvalue
+#                 tests_approx[i,j]=test_approx.pvalue
+#                 tests_approx[j,i]=test_approx.pvalue
             
-    else:
-        for i in range(results_exact_df.shape[1]-1):
-            curr_test_ex = []
-            curr_test_appr = []
+#     else:
+#         for i in range(results_exact_df.shape[1]-1):
+#             curr_test_ex = []
+#             curr_test_appr = []
 
-            for j in range(i+1, results_exact_df.shape[1]):
+#             for j in range(i+1, results_exact_df.shape[1]):
 
-                test_exact = ttest_ind(results_exact_df.iloc[:, i], results_exact_df.iloc[:, j], alternative=alternative)
-                test_approx = ttest_ind(results_approx_df.iloc[:, i], results_approx_df.iloc[:, j], alternative=alternative)
+#                 test_exact = ttest_ind(results_exact_df.iloc[:, i], results_exact_df.iloc[:, j], alternative=alternative)
+#                 test_approx = ttest_ind(results_approx_df.iloc[:, i], results_approx_df.iloc[:, j], alternative=alternative)
 
-                tests_exact[i,j]=test_exact.pvalue
-                tests_exact[j,i]=1-test_exact.pvalue
-                tests_approx[i,j]=test_approx.pvalue
-                tests_approx[j,i]=1-test_approx.pvalue
-
-
-    print('P-values for Variable Elimination')
-    display(pd.DataFrame(tests_exact,index=results_exact.keys(), columns=results_exact.keys()))
-
-    print('Pvalues for Approximate Inference')
-    display(pd.DataFrame(tests_approx,index=results_exact.keys(), columns=results_exact.keys()))
-
-    result_str = ", ".join(f"{var}={idx}" for var, idx in zip(query_vars, index_retrieve_values))
-
-    res_ex = pd.DataFrame(columns=['evidence', f'Mean_Exact_Score_{result_str}', f'Mean_Exact_Time_{result_str}',
-                                    f'Mean_Approx_Score_{result_str}', f'Mean_Approx_Time_{result_str}'])
-
-    for ev in evidences:
-        key = frozenset(ev.items())  # Ensure consistency
-        res_ex.loc[len(res_ex)] = [str(ev), mean(results_exact[key]), time_exact[key], mean(results_approx[key]), time_approx[key]]
-
-    return res_ex
-
-def simul_sum(model, query_vars, attribute_evidence, index_retrieve_values, iter=100, 
-          alternative='less', show_progress=False, num=1000):
-
-    # Generate all possible combinations of evidence
-    evidences = list(ParameterGrid({attr: model.get_cpds(attr).state_names[attr] for attr in attribute_evidence}))
-
-    evidence_iter = tqdm(evidences, desc=f"\tProcessing evidences", disable=not show_progress)
-
-    results_exact = {}
-    results_approx = {}
-    times_exact = {}
-    times_approx = {}
-    sum_results_exact = {}
-    sum_results_approx = {}
-    sum_times_exact = {}
-    sum_times_approx = {}
+#                 tests_exact[i,j]=test_exact.pvalue
+#                 tests_exact[j,i]=1-test_exact.pvalue
+#                 tests_approx[i,j]=test_approx.pvalue
+#                 tests_approx[j,i]=1-test_approx.pvalue
 
 
-    for ind in index_retrieve_values:  
+#     print('P-values for Variable Elimination')
+#     display(pd.DataFrame(tests_exact,index=results_exact.keys(), columns=results_exact.keys()))
+
+#     print('Pvalues for Approximate Inference')
+#     display(pd.DataFrame(tests_approx,index=results_exact.keys(), columns=results_exact.keys()))
+
+#     result_str = ", ".join(f"{var}={idx}" for var, idx in zip(query_vars, index_retrieve_values))
+
+#     res_ex = pd.DataFrame(columns=['evidence', f'Mean_Exact_Score_{result_str}', f'Mean_Exact_Time_{result_str}',
+#                                     f'Mean_Approx_Score_{result_str}', f'Mean_Approx_Time_{result_str}'])
+
+#     for ev in evidences:
+#         key = frozenset(ev.items())  # Ensure consistency
+#         res_ex.loc[len(res_ex)] = [str(ev), mean(results_exact[key]), time_exact[key], mean(results_approx[key]), time_approx[key]]
+
+#     return res_ex
+
+# def simul_sum(model, query_vars, attribute_evidence, index_retrieve_values, iter=100, 
+#           alternative='less', show_progress=False, num=1000):
+
+#     # Generate all possible combinations of evidence
+#     evidences = list(ParameterGrid({attr: model.get_cpds(attr).state_names[attr] for attr in attribute_evidence}))
+
+#     evidence_iter = tqdm(evidences, desc=f"\tProcessing evidences", disable=not show_progress)
+
+#     results_exact = {}
+#     results_approx = {}
+#     times_exact = {}
+#     times_approx = {}
+#     sum_results_exact = {}
+#     sum_results_approx = {}
+#     sum_times_exact = {}
+#     sum_times_approx = {}
+
+
+#     for ind in index_retrieve_values:  
        
-        for ev in evidence_iter:  
-            key = frozenset(ev.items())  # Convert dict to an immutable key
-            results_exact[key] = []
-            results_approx[key] = []
-            times_exact[key] = 0
-            times_approx[key] = 0
+#         for ev in evidence_iter:  
+#             key = frozenset(ev.items())  # Convert dict to an immutable key
+#             results_exact[key] = []
+#             results_approx[key] = []
+#             times_exact[key] = 0
+#             times_approx[key] = 0
     
-            for _ in range(iter):
-                result = query(model, query_vars, evidence=ev, num_samples=num)
+#             for _ in range(iter):
+#                 result = query(model, query_vars, evidence=ev, num_samples=num)
     
-                exact_score = get_nested_value(result["exact"]["result"].values, ind)
-                exact_time = result["exact"]["time"]
-                approx_score = get_nested_value(result["approx"]["result"].values, ind)
-                approx_time = result["approx"]["time"]
+#                 exact_score = get_nested_value(result["exact"]["result"].values, ind)
+#                 exact_time = result["exact"]["time"]
+#                 approx_score = get_nested_value(result["approx"]["result"].values, ind)
+#                 approx_time = result["approx"]["time"]
     
-                results_exact[key].append(exact_score)
-                results_approx[key].append(approx_score)
-                times_exact[key] += exact_time
-                times_approx[key] += approx_time
+#                 results_exact[key].append(exact_score)
+#                 results_approx[key].append(approx_score)
+#                 times_exact[key] += exact_time
+#                 times_approx[key] += approx_time
 
-            if key not in sum_results_approx.keys():
-                sum_results_exact[key]=np.array(results_exact[key])
-                sum_results_approx[key]=np.array(results_approx[key])
-                sum_times_exact[key] = times_exact[key]
-                sum_times_approx[key] = times_approx[key]
-            else:
-                sum_results_exact[key]+=np.array(results_exact[key])
-                sum_results_approx[key]+=np.array(results_approx[key])
-                sum_times_exact[key] += times_exact[key]
-                sum_times_approx[key]+= times_approx[key]             
+#             if key not in sum_results_approx.keys():
+#                 sum_results_exact[key]=np.array(results_exact[key])
+#                 sum_results_approx[key]=np.array(results_approx[key])
+#                 sum_times_exact[key] = times_exact[key]
+#                 sum_times_approx[key] = times_approx[key]
+#             else:
+#                 sum_results_exact[key]+=np.array(results_exact[key])
+#                 sum_results_approx[key]+=np.array(results_approx[key])
+#                 sum_times_exact[key] += times_exact[key]
+#                 sum_times_approx[key]+= times_approx[key]             
     
-    results_exact_df = pd.DataFrame(sum_results_exact)
-    results_approx_df = pd.DataFrame(sum_results_approx)
-    noise_level = 1e-6  # Small noise
-    results_exact_df += np.random.normal(0, noise_level, results_exact_df.shape)
-    results_approx_df += np.random.normal(0, noise_level, results_approx_df.shape)
+#     results_exact_df = pd.DataFrame(sum_results_exact)
+#     results_approx_df = pd.DataFrame(sum_results_approx)
+#     noise_level = 1e-6  # Small noise
+#     results_exact_df += np.random.normal(0, noise_level, results_exact_df.shape)
+#     results_approx_df += np.random.normal(0, noise_level, results_approx_df.shape)
 
 
-    tests_exact = np.empty((len(sum_results_exact), len(sum_results_exact)))
-    tests_approx = np.empty((len(sum_results_exact), len(sum_results_exact)))
-    np.fill_diagonal(tests_exact, [None]*len(sum_results_exact))
-    np.fill_diagonal(tests_approx, [None]*len(sum_results_exact))
+#     tests_exact = np.empty((len(sum_results_exact), len(sum_results_exact)))
+#     tests_approx = np.empty((len(sum_results_exact), len(sum_results_exact)))
+#     np.fill_diagonal(tests_exact, [None]*len(sum_results_exact))
+#     np.fill_diagonal(tests_approx, [None]*len(sum_results_exact))
 
 
-    if alternative=='two-sided':
+#     if alternative=='two-sided':
 
-        for i in range(results_exact_df.shape[1]-1):
-            curr_test_ex = []
-            curr_test_appr = []
+#         for i in range(results_exact_df.shape[1]-1):
+#             curr_test_ex = []
+#             curr_test_appr = []
 
-            for j in range(i+1, results_exact_df.shape[1]):
+#             for j in range(i+1, results_exact_df.shape[1]):
 
-                test_exact = ttest_ind(results_exact_df.iloc[:, i], results_exact_df.iloc[:, j], alternative=alternative)
-                test_approx = ttest_ind(results_approx_df.iloc[:, i], results_approx_df.iloc[:, j], alternative=alternative)
+#                 test_exact = ttest_ind(results_exact_df.iloc[:, i], results_exact_df.iloc[:, j], alternative=alternative)
+#                 test_approx = ttest_ind(results_approx_df.iloc[:, i], results_approx_df.iloc[:, j], alternative=alternative)
 
-                tests_exact[i,j]=test_exact.pvalue
-                tests_exact[j,i]=test_exact.pvalue
-                tests_approx[i,j]=test_approx.pvalue
-                tests_approx[j,i]=test_approx.pvalue
+#                 tests_exact[i,j]=test_exact.pvalue
+#                 tests_exact[j,i]=test_exact.pvalue
+#                 tests_approx[i,j]=test_approx.pvalue
+#                 tests_approx[j,i]=test_approx.pvalue
             
-    else:
-        for i in range(results_exact_df.shape[1]-1):
-            curr_test_ex = []
-            curr_test_appr = []
+#     else:
+#         for i in range(results_exact_df.shape[1]-1):
+#             curr_test_ex = []
+#             curr_test_appr = []
 
-            for j in range(i+1, results_exact_df.shape[1]):
+#             for j in range(i+1, results_exact_df.shape[1]):
 
-                test_exact = ttest_ind(results_exact_df.iloc[:, i], results_exact_df.iloc[:, j], alternative=alternative)
-                test_approx = ttest_ind(results_approx_df.iloc[:, i], results_approx_df.iloc[:, j], alternative=alternative)
+#                 test_exact = ttest_ind(results_exact_df.iloc[:, i], results_exact_df.iloc[:, j], alternative=alternative)
+#                 test_approx = ttest_ind(results_approx_df.iloc[:, i], results_approx_df.iloc[:, j], alternative=alternative)
 
-                tests_exact[i,j]=test_exact.pvalue
-                tests_exact[j,i]=1-test_exact.pvalue
-                tests_approx[i,j]=test_approx.pvalue
-                tests_approx[j,i]=1-test_approx.pvalue
+#                 tests_exact[i,j]=test_exact.pvalue
+#                 tests_exact[j,i]=1-test_exact.pvalue
+#                 tests_approx[i,j]=test_approx.pvalue
+#                 tests_approx[j,i]=1-test_approx.pvalue
 
 
-    print('P-values for Variable Elimination')
-    display(pd.DataFrame(tests_exact,index=results_exact.keys(), columns=results_exact.keys()))
+#     print('P-values for Variable Elimination')
+#     display(pd.DataFrame(tests_exact,index=results_exact.keys(), columns=results_exact.keys()))
 
-    print('Pvalues for Approximate Inference')
-    display(pd.DataFrame(tests_approx,index=results_exact.keys(), columns=results_exact.keys()))
+#     print('Pvalues for Approximate Inference')
+#     display(pd.DataFrame(tests_approx,index=results_exact.keys(), columns=results_exact.keys()))
 
-    result_str=[index_retrieve_values[index] for index in range(len(index_retrieve_values))]
+#     result_str=[index_retrieve_values[index] for index in range(len(index_retrieve_values))]
 
-    res_ex = pd.DataFrame(columns=['evidence', f'Mean_Exact_Score_{result_str}', f'Mean_Exact_Time_{result_str}',
-                                    f'Mean_Approx_Score_{result_str}', f'Mean_Approx_Time_{result_str}'])
+#     res_ex = pd.DataFrame(columns=['evidence', f'Mean_Exact_Score_{result_str}', f'Mean_Exact_Time_{result_str}',
+#                                     f'Mean_Approx_Score_{result_str}', f'Mean_Approx_Time_{result_str}'])
 
-    for ev in evidences:
-        key = frozenset(ev.items())  # Ensure consistency
-        res_ex.loc[len(res_ex)] = [str(ev), mean(sum_results_exact[key]), sum_times_exact[key], mean(sum_results_approx[key]), sum_times_approx[key]]
+#     for ev in evidences:
+#         key = frozenset(ev.items())  # Ensure consistency
+#         res_ex.loc[len(res_ex)] = [str(ev), mean(sum_results_exact[key]), sum_times_exact[key], mean(sum_results_approx[key]), sum_times_approx[key]]
 
-    return res_ex
+#     return res_ex
