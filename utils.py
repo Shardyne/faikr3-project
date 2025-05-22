@@ -243,7 +243,7 @@ def compute_bic(model, data, log_like_precomputed=None):
     num_params = sum(np.prod(cpd.cardinality) - 1 for cpd in model.get_cpds())  # Total number of parameters
     num_samples = len(data)  # Number of data points
     
-    bic = log_likelihood - (num_params / 2) * np.log(num_samples)
+    bic = -2*log_likelihood + (num_params) * np.log(num_samples)
     return bic
 
 def mean_d_separation(model: BayesianNetwork) -> float:
