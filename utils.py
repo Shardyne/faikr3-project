@@ -243,51 +243,8 @@ def compute_bic(model, data, log_like_precomputed=None):
     num_params = count_bn_parameters(model) # Total number of parameters
     num_samples = len(data)  # Number of data points
     
-    bic = -2*log_likelihood + (num_params) * np.log(num_samples)
+    bic = log_likelihood - (num_params * np.log(num_samples)) / 2
     return bic
-
-def mean_d_separation(model: BayesianNetwork) -> float:
-    """
-    Compute the mean fraction of node pairs that are d-separated in the Bayesian Network.
-    
-    Args:
-        model (BayesianNetwork): A Bayesian Network object from pgmpy.
-    
-    Returns:
-        float: Mean proportion of d-separated node pairs.
-    """
-    from itertools import combinations
-    nodes = list(model.nodes())
-    total_pairs = 0
-    d_separated_pairs = 0
-
-    for X, Y in combinations(nodes, 2):
-        total_pairs += 1
-        if not model.is_dconnected(X, Y, observed=[]):  # D-separated without conditions
-            d_separated_pairs += 1
-
-    return d_separated_pairs / total_pairs if total_pairs > 0 else 0
-
-def compute_sparsity_score(model: BayesianNetwork) -> float:
-    """
-    Compute the sparsity score of a Bayesian Network.
-    
-    Args:
-        model (BayesianNetwork): A Bayesian Network object from pgmpy.
-    
-    Returns:
-        float: Sparsity score (1 means fully sparse, 0 means fully connected).
-    """
-    num_nodes = len(model.nodes())
-    num_edges = len(model.edges())
-
-    if num_nodes < 2:  # Avoid division by zero
-        return 1.0  
-
-    max_possible_edges = num_nodes * (num_nodes - 1) / 2
-    sparsity_score = 1 - (num_edges / max_possible_edges)
-    
-    return sparsity_score
 
 def compute_accuracy(model, data, target_col, train_size=0.8, seed=42, fitting_params=None, show_progress=True):
     """
