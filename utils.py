@@ -240,7 +240,7 @@ def compute_bic(model, data, log_like_precomputed=None):
         log_likelihood = log_like_precomputed
     else:
         log_likelihood = log_like_score(model, data, show_progress=False)
-    num_params = sum(np.prod(cpd.cardinality) - 1 for cpd in model.get_cpds())  # Total number of parameters
+    num_params = count_bn_parameters(model) # Total number of parameters
     num_samples = len(data)  # Number of data points
     
     bic = -2*log_likelihood + (num_params) * np.log(num_samples)
